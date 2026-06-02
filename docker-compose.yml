@@ -35,6 +35,17 @@ networks:
 # Âncora YAML: configuração comum a todos os nós sensores.
 # Evita repetição; cada nó só declara as variáveis que diferem entre si.
 # ---------------------------------------------------------------------------
+x-traffic-control-env: &traffic-control-env
+  # Linux Traffic Control (tc/netem) aplicado dentro dos containers sensores.
+  # TC_LATENCY_MS=100 TC_JITTER_MS=20 TC_LOSS_PCT=0.5 docker compose --profile sensors up
+  TC_ENABLED: ${TC_ENABLED:-auto}
+  TC_IFACE: ${TC_IFACE:-eth0}
+  TC_LATENCY_MS: ${TC_LATENCY_MS:-0}
+  TC_JITTER_MS: ${TC_JITTER_MS:-0}
+  TC_LOSS_PCT: ${TC_LOSS_PCT:-0}
+  TC_RATE: ${TC_RATE:-}
+  TC_STRICT: ${TC_STRICT:-true}
+
 x-sensor-common: &sensor-common
   build:
     context: .
@@ -53,6 +64,9 @@ x-sensor-common: &sensor-common
       condition: service_healthy
   networks:
     - iot-cloud
+  # Necessário para que o comando `tc qdisc` altere a fila da interface eth0.
+  cap_add:
+    - NET_ADMIN
   # "no" porque os nós rodam o teste e encerram normalmente — não devem
   # ser reiniciados automaticamente como um serviço de longa duração.
   restart: "no"
@@ -165,6 +179,7 @@ services:
     <<: *sensor-common
     container_name: sensor-node-1
     environment:
+      <<: *traffic-control-env
       NODE_ID: node-1
       DEVICE_OFFSET: "0"
       DEVICE_COUNT: "334"
@@ -180,6 +195,7 @@ services:
     <<: *sensor-common
     container_name: sensor-node-2
     environment:
+      <<: *traffic-control-env
       NODE_ID: node-2
       DEVICE_OFFSET: "334"
       DEVICE_COUNT: "333"
@@ -193,6 +209,7 @@ services:
     <<: *sensor-common
     container_name: sensor-node-3
     environment:
+      <<: *traffic-control-env
       NODE_ID: node-3
       DEVICE_OFFSET: "667"
       DEVICE_COUNT: "333"

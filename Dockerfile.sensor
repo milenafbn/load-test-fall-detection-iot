@@ -10,6 +10,10 @@
 #   NODE_ID        → identificador do nó nos logs/relatórios (padrão: node-local)
 #   DEVICE_OFFSET  → índice de início no device_tokens.json  (padrão: 0)
 #   DEVICE_COUNT   → quantos devices este nó processa        (padrão: 333)
+#   TC_LATENCY_MS  → latência artificial via tc/netem        (padrão: 0)
+#   TC_JITTER_MS   → variação da latência via tc/netem       (padrão: 0)
+#   TC_LOSS_PCT    → perda de pacotes em porcentagem         (padrão: 0)
+#   TC_RATE        → limite de banda, ex: 1mbit ou 500kbit   (padrão: vazio)
 #
 # Build:
 #   docker build -f Dockerfile.sensor -t fall-sensor-node .
@@ -20,6 +24,8 @@
 #     -e DEVICE_OFFSET=333 \
 #     -e DEVICE_COUNT=333 \
 #     -e TB_HOST=thingsboard \
+#     -e TC_LATENCY_MS=100 \
+#     --cap-add NET_ADMIN \
 #     --network iot-cloud \
 #     -v $(pwd)/results:/app/results \
 #     fall-sensor-node
@@ -27,6 +33,11 @@
 FROM python:3.11-slim
 
 WORKDIR /app
+
+# Instala iproute2 para disponibilizar o comando `tc` usado pelo netem.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends iproute2 \
+    && rm -rf /var/lib/apt/lists/*
 
 # Instala dependências numa camada separada para aproveitar o cache do Docker.
 # Se requirements.txt não mudar, esta camada não é reconstruída.
@@ -37,6 +48,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # device_tokens.json é copiado para dentro da imagem; em produção pode ser
 # montado via volume se preferir tokens dinâmicos.
 COPY scripts/load_test.py scripts/
+COPY scripts/sensor_entrypoint.py scripts/
 COPY config/             config/
 COPY device_tokens.json  .
 
@@ -47,14 +59,16 @@ ENV TB_HOST=thingsboard \
     DEVICE_OFFSET=0 \
     DEVICE_COUNT=333 \
     REQUESTS=1000 \
-    INTERVAL_MS=100
+    INTERVAL_MS=100 \
+    TC_ENABLED=auto \
+    TC_IFACE=eth0 \
+    TC_LATENCY_MS=0 \
+    TC_JITTER_MS=0 \
+    TC_LOSS_PCT=0 \
+    TC_RATE= \
+    TC_STRICT=true
 
-# Shell form (não exec form) para que ${VAR} seja expandido em runtime.
-# Equivalente a rodar:
-#   python scripts/load_test.py --devices <DEVICE_COUNT> --offset <DEVICE_OFFSET> \
-#                                --requests <REQUESTS> --interval <INTERVAL_MS>
-CMD python scripts/load_test.py \
-      --devices  ${DEVICE_COUNT} \
-      --offset   ${DEVICE_OFFSET} \
-      --requests ${REQUESTS} \
-      --interval ${INTERVAL_MS}
+# O entrypoint aplica tc/netem quando configurado e depois monta o comando
+# Python a partir das variáveis de ambiente em runtime.
+ENTRYPOINT ["python", "scripts/sensor_entrypoint.py"]
+CMD ["run-load-test"]

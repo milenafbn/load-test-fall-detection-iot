@@ -136,11 +136,11 @@ docker compose --profile sensors up sensor-node-1 sensor-node-2 sensor-node-3
 
 Os 3 containers rodam simultaneamente, cada um publicando sua fatia:
 
-| Container | Devices | `DEVICE_OFFSET` | `DEVICE_COUNT` |
-|---|---|---|---|
-| `sensor-node-1` | 0 – 333 | 0 | 334 |
-| `sensor-node-2` | 334 – 666 | 334 | 333 |
-| `sensor-node-3` | 667 – 999 | 667 | 333 |
+| Container       | Devices   | `DEVICE_OFFSET`| `DEVICE_COUNT` |
+|-----------------|-----------|----------------|----------------|
+| `sensor-node-1` | 0 – 333   | 0              | 334            |
+| `sensor-node-2` | 334 – 666 | 334            | 333            |
+| `sensor-node-3` | 667 – 999 | 667            | 333            |
 
 ### 3. Customizar parâmetros sem editar arquivos
 
@@ -150,6 +150,56 @@ As variáveis `EXP_REQUESTS` e `EXP_INTERVAL_MS` propagam para todos os nós:
 EXP_REQUESTS=50 EXP_INTERVAL_MS=200 \
   docker compose --profile sensors up sensor-node-1 sensor-node-2 sensor-node-3
 ```
+
+### 4. Simular latência com Traffic Control
+
+Os containers sensores podem aplicar Linux Traffic Control (`tc netem`) antes de
+iniciar o `load_test.py`. Isso permite simular latência, jitter, perda de
+pacotes e limite de banda na interface de rede do container.
+
+Após alterar o Dockerfile, reconstrua a imagem:
+
+```bash
+docker compose build sensor-node-1
+```
+
+Exemplo com 100 ms de latência artificial em todos os nós sensores:
+
+```bash
+TC_LATENCY_MS=100 \
+  docker compose --profile sensors up sensor-node-1 sensor-node-2 sensor-node-3
+```
+
+Exemplo com latência, jitter e perda:
+
+```bash
+TC_LATENCY_MS=120 TC_JITTER_MS=30 TC_LOSS_PCT=0.5 \
+  EXP_REQUESTS=50 EXP_INTERVAL_MS=100 \
+  docker compose --profile sensors up sensor-node-1 sensor-node-2 sensor-node-3
+```
+
+Exemplo limitando banda:
+
+```bash
+TC_RATE=1mbit \
+  docker compose --profile sensors up sensor-node-1 sensor-node-2 sensor-node-3
+```
+
+Variáveis disponíveis:
+
+| Variável | Padrão | Efeito |
+|---|---:|---|
+| `TC_LATENCY_MS` | `0` | Atraso fixo adicionado aos pacotes de saída do container. |
+| `TC_JITTER_MS` | `0` | Variação da latência, usando distribuição normal do netem. |
+| `TC_LOSS_PCT` | `0` | Percentual de perda de pacotes. Ex: `0.5` para 0,5%. |
+| `TC_RATE` | vazio | Limite de banda aceito pelo `tc`, como `1mbit` ou `500kbit`. |
+| `TC_IFACE` | `eth0` | Interface do container onde o netem será aplicado. |
+| `TC_STRICT` | `true` | Se `true`, falha o container caso o `tc` não seja aplicado. |
+
+O `docker-compose.yml` adiciona `cap_add: NET_ADMIN` aos sensores, pois o
+`tc qdisc` precisa dessa capacidade para alterar a fila da interface. Quando
+todas as variáveis de Traffic Control ficam zeradas/vazias, o container apenas
+informa que o `tc` está desativado e roda normalmente.
 
 ---
 
@@ -172,6 +222,9 @@ bash scripts/run_experiments.sh all
 
 # Com carga menor (recomendado para testes rápidos):
 REQUESTS=50 INTERVAL_MS=100 bash scripts/run_experiments.sh A
+
+# Com latência artificial nos nós Docker:
+TC_LATENCY_MS=100 TC_JITTER_MS=20 REQUESTS=50 bash scripts/run_experiments.sh A
 ```
 
 ### Experimento A — Escalabilidade Horizontal
@@ -280,6 +333,7 @@ load-test-fall-detection-iot/
 ├── scripts/
 │   ├── provision_devices.py    # Cria devices via REST API
 │   ├── load_test.py            # Motor MQTT (asyncio + --offset para particionamento)
+│   ├── sensor_entrypoint.py    # Aplica tc/netem antes de iniciar o load test
 │   ├── compare_results.py      # Agrega e compara relatórios de múltiplos nós
 │   ├── run_experiments.sh      # Orquestra experimentos A, B e C
 │   ├── dashboard_setup.py      # Cria dashboard com widgets

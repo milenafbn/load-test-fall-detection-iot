@@ -19,9 +19,14 @@
 #   REQUESTS      → Requisições por device  (padrão: 100)
 #   INTERVAL_MS   → Intervalo entre req em ms (padrão: 100)
 #   DEVICES_TOTAL → Total de devices no pool  (padrão: 1000)
+#   TC_LATENCY_MS → Latência artificial por nó sensor via tc/netem (padrão: 0)
+#   TC_JITTER_MS  → Variação da latência via tc/netem             (padrão: 0)
+#   TC_LOSS_PCT   → Perda de pacotes em porcentagem               (padrão: 0)
+#   TC_RATE       → Limite de banda, ex: 1mbit ou 500kbit          (padrão: vazio)
 #
 # Exemplo com parâmetros customizados:
 #   REQUESTS=50 INTERVAL_MS=200 bash scripts/run_experiments.sh A
+#   TC_LATENCY_MS=100 TC_JITTER_MS=20 REQUESTS=50 bash scripts/run_experiments.sh A
 
 set -euo pipefail
 
@@ -31,6 +36,15 @@ set -euo pipefail
 REQUESTS="${REQUESTS:-100}"
 INTERVAL_MS="${INTERVAL_MS:-100}"
 DEVICES_TOTAL="${DEVICES_TOTAL:-1000}"
+TC_ENABLED="${TC_ENABLED:-auto}"
+TC_IFACE="${TC_IFACE:-eth0}"
+TC_LATENCY_MS="${TC_LATENCY_MS:-0}"
+TC_JITTER_MS="${TC_JITTER_MS:-0}"
+TC_LOSS_PCT="${TC_LOSS_PCT:-0}"
+TC_RATE="${TC_RATE:-}"
+TC_STRICT="${TC_STRICT:-true}"
+
+export TC_ENABLED TC_IFACE TC_LATENCY_MS TC_JITTER_MS TC_LOSS_PCT TC_RATE TC_STRICT
 
 # Particionamento para 3 nós
 NODE1_COUNT=334                          # devices 0–333
@@ -72,6 +86,10 @@ check_prereqs() {
 
     [[ -f "device_tokens.json" ]] || error "device_tokens.json não encontrado. Execute provision_devices.py primeiro."
     mkdir -p "$RESULTS_DIR"
+
+    if [[ "$TC_LATENCY_MS" != "0" || "$TC_JITTER_MS" != "0" || "$TC_LOSS_PCT" != "0" || -n "$TC_RATE" ]]; then
+        info "Traffic Control: latency=${TC_LATENCY_MS}ms jitter=${TC_JITTER_MS}ms loss=${TC_LOSS_PCT}% rate=${TC_RATE:-sem limite}"
+    fi
 }
 
 build_image() {
