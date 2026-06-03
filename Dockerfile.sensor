@@ -27,6 +27,7 @@
 #     -e TC_LATENCY_MS=100 \
 #     --cap-add NET_ADMIN \
 #     --network iot-cloud \
+#     -v $(pwd)/device_tokens.json:/app/device_tokens.json:ro \
 #     -v $(pwd)/results:/app/results \
 #     fall-sensor-node
 
@@ -44,13 +45,11 @@ RUN apt-get update \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copia apenas os arquivos necessários para rodar o load_test.
-# device_tokens.json é copiado para dentro da imagem; em produção pode ser
-# montado via volume se preferir tokens dinâmicos.
+# Copia apenas os arquivos estáveis necessários para rodar o load_test.
+# device_tokens.json é gerado pelo provisionamento e montado em runtime.
 COPY scripts/load_test.py scripts/
 COPY scripts/sensor_entrypoint.py scripts/
 COPY config/             config/
-COPY device_tokens.json  .
 
 # Variáveis padrão — todas podem ser sobrescritas no docker-compose ou via -e.
 ENV TB_HOST=thingsboard \

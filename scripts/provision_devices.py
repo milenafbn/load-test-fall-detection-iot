@@ -52,11 +52,25 @@ SAVE_EVERY = 500
 # Helpers de autenticação
 # ---------------------------------------------------------------------------
 
+def _response_error(resp: httpx.Response) -> str:
+    """Resumo curto da resposta HTTP, sem despejar corpos enormes no terminal."""
+    try:
+        body = resp.json()
+        message = body.get("message") or body.get("error") or body
+    except Exception:
+        message = resp.text.strip()
+
+    if message:
+        return f"HTTP {resp.status_code}: {str(message)[:180]}"
+    return f"HTTP {resp.status_code}"
+
+
 async def wait_for_thingsboard(client: httpx.AsyncClient, timeout_s: int = 180) -> None:
     """Aguarda o ThingsBoard inicializar completamente."""
     console.print("[cyan]Aguardando ThingsBoard inicializar...[/cyan]")
     deadline = time.monotonic() + timeout_s
     attempt = 0
+    last_error = ""
     while time.monotonic() < deadline:
         attempt += 1
         try:
@@ -68,11 +82,23 @@ async def wait_for_thingsboard(client: httpx.AsyncClient, timeout_s: int = 180) 
             if resp.status_code == 200:
                 console.print(f"[green]ThingsBoard pronto! (tentativa {attempt})[/green]")
                 return
-        except Exception:
-            pass
-        console.print(f"[yellow]  Tentativa {attempt}: aguardando 5s...[/yellow]")
+            last_error = _response_error(resp)
+            if resp.status_code in {401, 403}:
+                raise RuntimeError(
+                    "ThingsBoard respondeu, mas rejeitou as credenciais admin. "
+                    "Confira TB_ADMIN_EMAIL/TB_ADMIN_PASSWORD no .env. "
+                    f"Resposta: {last_error}"
+                )
+        except httpx.RequestError as exc:
+            last_error = f"{exc.__class__.__name__}: {exc}"
+        console.print(
+            f"[yellow]  Tentativa {attempt}: {last_error or 'sem resposta'}; "
+            "aguardando 5s...[/yellow]"
+        )
         await asyncio.sleep(5)
-    raise TimeoutError(f"ThingsBoard não ficou pronto em {timeout_s}s")
+    raise TimeoutError(
+        f"ThingsBoard não ficou pronto em {timeout_s}s. Última falha: {last_error}"
+    )
 
 
 async def login_admin(client: httpx.AsyncClient) -> str:

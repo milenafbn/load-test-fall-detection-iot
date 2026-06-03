@@ -88,6 +88,17 @@ python scripts/provision_devices.py
 Cria os devices no ThingsBoard via REST API e salva os tokens em
 `device_tokens.json`. Idempotente — pode ser re-executado com segurança.
 
+Se o provisionamento ficar repetindo conexão recusada ou o log do ThingsBoard
+mostrar `password authentication failed for user "thingsboard"`, o volume do
+Postgres provavelmente foi criado com uma senha antiga. Sincronize a senha do
+banco com o `.env` e reinicie:
+
+```bash
+docker compose exec -T postgres psql -U thingsboard -d thingsboard \
+  -c "ALTER USER thingsboard WITH PASSWORD 'thingsboard2026'"
+docker compose restart thingsboard
+```
+
 ### 3. Criar dashboard
 
 ```bash
@@ -124,12 +135,19 @@ O relatório JSON é salvo em `results/load_test_<NODE_ID>_<timestamp>.json`.
 docker compose build sensor-node-1
 ```
 
-### 2. Subir infraestrutura e rodar os nós
+### 2. Subir infraestrutura e provisionar devices
 
 ```bash
 # Só infraestrutura (ThingsBoard + Postgres):
 docker compose up thingsboard postgres -d
 
+# Gera device_tokens.json, usado pelos containers sensores:
+python scripts/provision_devices.py
+```
+
+### 3. Rodar os nós
+
+```bash
 # Todos os nós em paralelo (requer profile "sensors"):
 docker compose --profile sensors up sensor-node-1 sensor-node-2 sensor-node-3
 ```
@@ -142,7 +160,7 @@ Os 3 containers rodam simultaneamente, cada um publicando sua fatia:
 | `sensor-node-2` | 334 – 666 | 334            | 333            |
 | `sensor-node-3` | 667 – 999 | 667            | 333            |
 
-### 3. Customizar parâmetros sem editar arquivos
+### 4. Customizar parâmetros sem editar arquivos
 
 As variáveis `EXP_REQUESTS` e `EXP_INTERVAL_MS` propagam para todos os nós:
 
@@ -151,7 +169,7 @@ EXP_REQUESTS=50 EXP_INTERVAL_MS=200 \
   docker compose --profile sensors up sensor-node-1 sensor-node-2 sensor-node-3
 ```
 
-### 4. Simular latência com Traffic Control
+### 5. Simular latência com Traffic Control
 
 Os containers sensores podem aplicar Linux Traffic Control (`tc netem`) antes de
 iniciar o `load_test.py`. Isso permite simular latência, jitter, perda de
