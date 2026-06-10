@@ -172,8 +172,8 @@ services:
       NODE_ID: node-1
       DEVICE_OFFSET: "0"
       DEVICE_COUNT: "334"
-      TB_HOST: thingsboard   # DNS interno Docker — não "localhost"
-      TB_MQTT_PORT: "1883"
+      TB_HOST: ${TB_HOST}   # DNS interno Docker — não "localhost"
+      TB_MQTT_PORT: ${TB_MQTT_PORT}
       METRICS_PORT: "8001"
       # EXP_REQUESTS e EXP_INTERVAL_MS permitem que o run_experiments.sh
       # ajuste a carga sem editar este arquivo. Ex: EXP_REQUESTS=50 docker compose up
@@ -194,8 +194,8 @@ services:
       NODE_ID: node-2
       DEVICE_OFFSET: "334"
       DEVICE_COUNT: "333"
-      TB_HOST: thingsboard
-      TB_MQTT_PORT: "1883"
+      TB_HOST: ${TB_HOST}
+      TB_MQTT_PORT: ${TB_MQTT_PORT}
       METRICS_PORT: "8001"
       REQUESTS: ${EXP_REQUESTS:-1000}
       INTERVAL_MS: ${EXP_INTERVAL_MS:-100}
@@ -211,8 +211,8 @@ services:
       NODE_ID: node-3
       DEVICE_OFFSET: "667"
       DEVICE_COUNT: "333"
-      TB_HOST: thingsboard
-      TB_MQTT_PORT: "1883"
+      TB_HOST: ${TB_HOST}
+      TB_MQTT_PORT: ${TB_MQTT_PORT}
       METRICS_PORT: "8001"
       REQUESTS: ${EXP_REQUESTS:-1000}
       INTERVAL_MS: ${EXP_INTERVAL_MS:-100}

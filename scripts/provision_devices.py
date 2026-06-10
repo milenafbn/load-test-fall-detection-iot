@@ -37,9 +37,9 @@ TOKENS_PATH = BASE_DIR / "device_tokens.json"
 with open(CONFIG_PATH) as f:
     CONFIG = yaml.safe_load(f)
 
-TB_HOST = os.getenv("TB_HOST", "localhost")
+TB_HTTP_HOST = os.getenv("TB_HTTP_HOST", os.getenv("TB_HOST", "localhost"))
 TB_HTTP_PORT = os.getenv("TB_HTTP_PORT", "8090")
-TB_BASE_URL = f"http://{TB_HOST}:{TB_HTTP_PORT}"
+TB_BASE_URL = f"http://{TB_HTTP_HOST}:{TB_HTTP_PORT}"
 ADMIN_EMAIL = os.getenv("TB_ADMIN_EMAIL", "sysadmin@thingsboard.org")
 ADMIN_PASSWORD = os.getenv("TB_ADMIN_PASSWORD", "sysadmin")
 TENANT_EMAIL = os.getenv("TB_TENANT_EMAIL", "tenant@thingsboard.org")
